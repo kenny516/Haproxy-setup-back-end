@@ -20,6 +20,19 @@ class Server(BaseModel):
     port: int
     type: str
 
+def remove_server_from_config(server_name: str):
+    haproxy_config_path = '/etc/haproxy/haproxy.cfg'
+    
+    with open(haproxy_config_path, 'r') as file:
+        lines = file.readlines()
+    
+    new_lines = []
+    for line in lines:
+        if not (line.strip().startswith('server') and server_name in line):
+            new_lines.append(line)
+    
+    with open(haproxy_config_path, 'w') as file:
+        file.writelines(new_lines)
 
 def add_server_to_backend(backend: str, server: Server):
     haproxy_config_path = '/etc/haproxy/haproxy.cfg'
@@ -49,8 +62,6 @@ def add_server_to_backend(backend: str, server: Server):
     with open(haproxy_config_path, 'w') as file:
         file.writelines(lines)
 
-
-
 def list_servers():
     haproxy_config_path = '/etc/haproxy/haproxy.cfg'
     servers = {"backends": [], "db_servers": []}
@@ -77,18 +88,23 @@ def list_servers():
 
     return servers
 
-
 @app.post("/haproxy/add_app_server")
 def add_app_server(server: Server):
     add_server_to_backend("backend", server)
     return {"message": f"Serveur {server.name} ajouté à la configuration des serveurs de l'application."}
-
 
 @app.post("/haproxy/add_db_server")
 def add_db_server(server: Server):
     add_server_to_backend("mysql_servers", server)
     return {"message": f"Serveur {server.name} ajouté à la configuration des serveurs de base de données."}
 
+@app.delete("/haproxy/remove_server/{server_name}")
+def remove_server(server_name: str):
+    try:
+        remove_server_from_config(server_name)
+        return {"message": f"Serveur {server_name} supprimé de la configuration."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la suppression du serveur: {e}")
 
 @app.get("/haproxy/config")
 def get_haproxy_config():
@@ -99,7 +115,6 @@ def get_haproxy_config():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la lecture de la configuration: {e}")
 
-
 @app.get("/haproxy/list_servers")
 def list_all_servers():
     try:
@@ -107,7 +122,6 @@ def list_all_servers():
         return servers
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la lecture des serveurs: {e}")
-
 
 # Endpoint pour redémarrer HAProxy (commenté)
 # @app.post("/haproxy/restart")
